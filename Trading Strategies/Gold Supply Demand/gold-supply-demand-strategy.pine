@@ -11,12 +11,7 @@
 // read of the source videos - check the zone logic against your own
 // charts and tune the inputs below before trading it live.
 //@version=5
-strategy(title="Gold Supply & Demand Strategy (5m)", shorttitle="XAU S&D",
-     overlay=true, initial_capital=10000, currency=currency.USD,
-     default_qty_type=strategy.fixed_qty, default_qty_value=1,
-     pyramiding=0, calc_on_every_tick=false,
-     commission_type=strategy.commission.percent, commission_value=0.02,
-     slippage=2)
+strategy(title="Gold Supply & Demand Strategy (5m)", shorttitle="XAU S&D", overlay=true, initial_capital=10000, currency=currency.USD, default_qty_type=strategy.fixed_qty, default_qty_value=1, pyramiding=0, calc_on_every_tick=false, commission_type=strategy.commission.percent, commission_value=0.02, slippage=2)
 
 // ---------------- Inputs ----------------
 grpZone = "Zone Detection"
@@ -92,14 +87,12 @@ if barstate.isconfirmed
     bearImpulse = allSmall and close < open and impulseRange > breakoutFactor * atrVal and close < baseLow
 
     if bullImpulse
-        dBox = box.new(left=bar_index - baseLen, top=baseHigh, bottom=baseLow, right=bar_index + extendBars,
-             border_color=color.green, bgcolor=demandColor, extend=extend.none)
+        dBox = box.new(left=bar_index - baseLen, top=baseHigh, bottom=baseLow, right=bar_index + extendBars, border_color=color.green, bgcolor=demandColor, extend=extend.none)
         array.push(demandZones, Zone.new(top=baseHigh, bottom=baseLow, active=true, touched=false, createdBar=bar_index, zoneBox=dBox))
         f_trim(demandZones)
 
     if bearImpulse
-        sBox = box.new(left=bar_index - baseLen, top=baseHigh, bottom=baseLow, right=bar_index + extendBars,
-             border_color=color.red, bgcolor=supplyColor, extend=extend.none)
+        sBox = box.new(left=bar_index - baseLen, top=baseHigh, bottom=baseLow, right=bar_index + extendBars, border_color=color.red, bgcolor=supplyColor, extend=extend.none)
         array.push(supplyZones, Zone.new(top=baseHigh, bottom=baseLow, active=true, touched=false, createdBar=bar_index, zoneBox=sBox))
         f_trim(supplyZones)
 
