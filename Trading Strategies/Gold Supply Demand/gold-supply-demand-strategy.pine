@@ -1,0 +1,222 @@
+// Gold Supply & Demand Strategy (5m)
+//
+// Zones      : base (1-3 tight-range candles) immediately followed by a
+//              strong impulsive candle breaking away from it.
+// Entry      : price returns into an untouched zone and prints a rejection
+//              candle (pin bar or engulfing) before continuing.
+// Stop       : just beyond the far (distal) edge of the zone.
+// Target     : nearest opposite zone; falls back to a fixed R:R if none.
+//
+// Built from a text description of the strategy, not a frame-by-frame
+// read of the source videos - check the zone logic against your own
+// charts and tune the inputs below before trading it live.
+//@version=5
+strategy(title="Gold Supply & Demand Strategy (5m)", shorttitle="XAU S&D",
+     overlay=true, initial_capital=10000, currency=currency.USD,
+     default_qty_type=strategy.fixed_qty, default_qty_value=1,
+     pyramiding=0, calc_on_every_tick=false,
+     commission_type=strategy.commission.percent, commission_value=0.02,
+     slippage=2)
+
+// ---------------- Inputs ----------------
+grpZone = "Zone Detection"
+baseLen           = input.int(2, "Base candles (consolidation)", minval=1, maxval=3, group=grpZone)
+smallRangeFactor  = input.float(0.5, "Base candle max range (x ATR)", minval=0.1, step=0.1, group=grpZone)
+breakoutFactor    = input.float(1.5, "Breakout candle min range (x ATR)", minval=0.5, step=0.1, group=grpZone)
+atrLen            = input.int(14, "ATR length", minval=1, group=grpZone)
+maxZoneAgeBars    = input.int(300, "Zone expiry (bars, 0 = never)", minval=0, group=grpZone)
+maxZonesKept      = input.int(15, "Max zones kept per side", minval=3, maxval=50, group=grpZone)
+
+grpEntry = "Entry / Rejection"
+freshZoneOnly     = input.bool(true, "Only trade fresh (untouched) zones", group=grpEntry)
+rejectionWickMult = input.float(1.0, "Min wick-to-body ratio for pin rejection", minval=0.1, step=0.1, group=grpEntry)
+allowLong         = input.bool(true, "Enable long (demand) trades", group=grpEntry)
+allowShort        = input.bool(true, "Enable short (supply) trades", group=grpEntry)
+
+grpRisk = "Risk Management"
+stopBuffer   = input.float(0.50, "Stop buffer beyond zone ($)", minval=0.0, step=0.05, group=grpRisk)
+fallbackRR   = input.float(2.0, "Fallback R:R if no opposite zone", minval=0.5, step=0.5, group=grpRisk)
+useFixedQty  = input.bool(false, "Use fixed quantity instead of risk %", group=grpRisk)
+fixedQty     = input.float(1.0, "Fixed quantity", minval=0.0001, group=grpRisk)
+riskPercent  = input.float(1.0, "Risk per trade (% of equity)", minval=0.1, step=0.1, group=grpRisk)
+
+grpSession = "Session Filter (optional)"
+useSession    = input.bool(false, "Only trade within session", group=grpSession)
+sessionWindow = input.session("0800-1700", "Session (exchange time)", group=grpSession)
+
+grpVis = "Visuals"
+demandColor = input.color(color.new(color.green, 70), "Demand zone color", group=grpVis)
+supplyColor = input.color(color.new(color.red, 70), "Supply zone color", group=grpVis)
+extendBars  = input.int(50, "Zone box extend (bars)", minval=5, group=grpVis)
+
+// ---------------- Zone type & storage ----------------
+type Zone
+    float top
+    float bottom
+    bool  active
+    bool  touched
+    int   createdBar
+    box   zoneBox
+
+var array<Zone> demandZones = array.new<Zone>()
+var array<Zone> supplyZones = array.new<Zone>()
+
+f_trim(arr) =>
+    if array.size(arr) > maxZonesKept
+        oldZone = array.shift(arr)
+        box.delete(oldZone.zoneBox)
+
+atrVal = ta.atr(atrLen)
+sessionOK = not useSession or not na(time(timeframe.period, sessionWindow))
+
+longSignal   = false
+shortSignal  = false
+float longStop   = na
+float longTarget = na
+float shortStop   = na
+float shortTarget = na
+
+if barstate.isconfirmed
+    // ---- 1. Detect new zones ----
+    baseHigh = high[1]
+    baseLow  = low[1]
+    allSmall = true
+    for i = 1 to baseLen
+        if (high[i] - low[i]) > smallRangeFactor * atrVal
+            allSmall := false
+        baseHigh := math.max(baseHigh, high[i])
+        baseLow  := math.min(baseLow, low[i])
+
+    impulseRange = high - low
+    bullImpulse = allSmall and close > open and impulseRange > breakoutFactor * atrVal and close > baseHigh
+    bearImpulse = allSmall and close < open and impulseRange > breakoutFactor * atrVal and close < baseLow
+
+    if bullImpulse
+        dBox = box.new(left=bar_index - baseLen, top=baseHigh, bottom=baseLow, right=bar_index + extendBars,
+             border_color=color.green, bgcolor=demandColor, extend=extend.none)
+        array.push(demandZones, Zone.new(top=baseHigh, bottom=baseLow, active=true, touched=false, createdBar=bar_index, zoneBox=dBox))
+        f_trim(demandZones)
+
+    if bearImpulse
+        sBox = box.new(left=bar_index - baseLen, top=baseHigh, bottom=baseLow, right=bar_index + extendBars,
+             border_color=color.red, bgcolor=supplyColor, extend=extend.none)
+        array.push(supplyZones, Zone.new(top=baseHigh, bottom=baseLow, active=true, touched=false, createdBar=bar_index, zoneBox=sBox))
+        f_trim(supplyZones)
+
+    // ---- 2. Maintain existing zones (extend / invalidate / expire) ----
+    if array.size(demandZones) > 0
+        for i = 0 to array.size(demandZones) - 1
+            zD = array.get(demandZones, i)
+            if zD.active
+                box.set_right(zD.zoneBox, bar_index + extendBars)
+                if close < zD.bottom
+                    zD.active := false
+                    box.set_border_color(zD.zoneBox, color.gray)
+                    box.set_bgcolor(zD.zoneBox, color.new(color.gray, 85))
+                else if maxZoneAgeBars > 0 and (bar_index - zD.createdBar) > maxZoneAgeBars
+                    zD.active := false
+                    box.set_bgcolor(zD.zoneBox, color.new(color.gray, 90))
+
+    if array.size(supplyZones) > 0
+        for i = 0 to array.size(supplyZones) - 1
+            zS = array.get(supplyZones, i)
+            if zS.active
+                box.set_right(zS.zoneBox, bar_index + extendBars)
+                if close > zS.top
+                    zS.active := false
+                    box.set_border_color(zS.zoneBox, color.gray)
+                    box.set_bgcolor(zS.zoneBox, color.new(color.gray, 85))
+                else if maxZoneAgeBars > 0 and (bar_index - zS.createdBar) > maxZoneAgeBars
+                    zS.active := false
+                    box.set_bgcolor(zS.zoneBox, color.new(color.gray, 90))
+
+    // ---- 3. Rejection candle at current bar ----
+    body       = math.abs(close - open)
+    lowerWick  = math.min(open, close) - low
+    upperWick  = high - math.max(open, close)
+    prevBearish = close[1] < open[1]
+    prevBullish = close[1] > open[1]
+
+    bullishEngulf = close > open and close > open[1] and open < close[1] and prevBearish
+    bullishPin    = close > open and lowerWick >= body * rejectionWickMult and lowerWick > upperWick
+    isBullishRejection = bullishEngulf or bullishPin
+
+    bearishEngulf = close < open and close < open[1] and open > close[1] and prevBullish
+    bearishPin    = close < open and upperWick >= body * rejectionWickMult and upperWick > lowerWick
+    isBearishRejection = bearishEngulf or bearishPin
+
+    // ---- 4. Long setup: nearest untouched demand zone the low wicked into ----
+    if strategy.position_size == 0 and allowLong and sessionOK and isBullishRejection and array.size(demandZones) > 0
+        bestBottom = -1.0
+        bestIdx = -1
+        for i = 0 to array.size(demandZones) - 1
+            zD = array.get(demandZones, i)
+            if zD.active and (not freshZoneOnly or not zD.touched) and low <= zD.top and low >= zD.bottom
+                if zD.bottom > bestBottom
+                    bestBottom := zD.bottom
+                    bestIdx := i
+        if bestIdx >= 0
+            zD = array.get(demandZones, bestIdx)
+            zD.touched := true
+            stopP = zD.bottom - stopBuffer
+            riskUnit = close - stopP
+            if riskUnit > 0
+                targetP = float(na)
+                nearestBottom = 1e10
+                if array.size(supplyZones) > 0
+                    for j = 0 to array.size(supplyZones) - 1
+                        zS = array.get(supplyZones, j)
+                        if zS.active and zS.bottom > close and zS.bottom < nearestBottom
+                            nearestBottom := zS.bottom
+                            targetP := zS.bottom
+                if na(targetP)
+                    targetP := close + riskUnit * fallbackRR
+                longSignal := true
+                longStop := stopP
+                longTarget := targetP
+
+    // ---- 5. Short setup: nearest untouched supply zone the high wicked into ----
+    if strategy.position_size == 0 and allowShort and sessionOK and isBearishRejection and array.size(supplyZones) > 0
+        bestTop = 1.0e10
+        bestIdxS = -1
+        for i = 0 to array.size(supplyZones) - 1
+            zS = array.get(supplyZones, i)
+            if zS.active and (not freshZoneOnly or not zS.touched) and high >= zS.bottom and high <= zS.top
+                if zS.top < bestTop
+                    bestTop := zS.top
+                    bestIdxS := i
+        if bestIdxS >= 0
+            zS = array.get(supplyZones, bestIdxS)
+            zS.touched := true
+            stopP = zS.top + stopBuffer
+            riskUnit = stopP - close
+            if riskUnit > 0
+                targetP = float(na)
+                nearestTop = -1.0e10
+                if array.size(demandZones) > 0
+                    for j = 0 to array.size(demandZones) - 1
+                        zD = array.get(demandZones, j)
+                        if zD.active and zD.top < close and zD.top > nearestTop
+                            nearestTop := zD.top
+                            targetP := zD.top
+                if na(targetP)
+                    targetP := close - riskUnit * fallbackRR
+                shortSignal := true
+                shortStop := stopP
+                shortTarget := targetP
+
+// ---------------- Orders ----------------
+if longSignal
+    riskUnit = close - longStop
+    qty = useFixedQty ? fixedQty : (strategy.equity * riskPercent / 100) / riskUnit
+    strategy.entry("Long", strategy.long, qty=qty)
+    strategy.exit("Long Exit", "Long", stop=longStop, limit=longTarget)
+
+if shortSignal
+    riskUnit = shortStop - close
+    qty = useFixedQty ? fixedQty : (strategy.equity * riskPercent / 100) / riskUnit
+    strategy.entry("Short", strategy.short, qty=qty)
+    strategy.exit("Short Exit", "Short", stop=shortStop, limit=shortTarget)
+
+alertcondition(longSignal, title="Long Entry (Demand Zone)", message="Gold S&D: long entry signal")
+alertcondition(shortSignal, title="Short Entry (Supply Zone)", message="Gold S&D: short entry signal")
