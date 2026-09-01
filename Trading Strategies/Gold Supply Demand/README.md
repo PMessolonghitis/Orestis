@@ -51,11 +51,12 @@ most supply/demand teaching.
 - **Only trade fresh zones** — turn off to allow re-entries on zones
   that have already been tested once.
 - **Risk per trade (%)** — position size is computed from account
-  equity and the stop distance. This assumes your gold feed's contract
-  moves $1 in value per $1 of price change (typical for spot/CFD gold
-  feeds like OANDA:XAUUSD). If your broker's contract specification
-  differs, either adjust this assumption or turn on **Use fixed
-  quantity** and set a fixed lot/contract size instead.
+  equity, the stop distance, and the symbol's own point value
+  (`syminfo.pointvalue`), so it sizes correctly whether you're on a
+  futures contract (e.g. GC1!, $100/point) or a spot/CFD feed (e.g.
+  OANDA:XAUUSD, $1/point) — no manual adjustment needed. If you'd
+  rather not risk-size at all, turn on **Use fixed quantity** and set a
+  fixed lot/contract size instead.
 - **Session filter** — off by default; enable it to restrict entries to
   a specific session window (e.g. London/New York) if that's part of
   what the videos taught.

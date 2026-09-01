@@ -201,13 +201,13 @@ if barstate.isconfirmed
 // ---------------- Orders ----------------
 if longSignal
     riskUnit = close - longStop
-    qty = useFixedQty ? fixedQty : (strategy.equity * riskPercent / 100) / riskUnit
+    qty = useFixedQty ? fixedQty : (strategy.equity * riskPercent / 100) / (riskUnit * syminfo.pointvalue)
     strategy.entry("Long", strategy.long, qty=qty)
     strategy.exit("Long Exit", "Long", stop=longStop, limit=longTarget)
 
 if shortSignal
     riskUnit = shortStop - close
-    qty = useFixedQty ? fixedQty : (strategy.equity * riskPercent / 100) / riskUnit
+    qty = useFixedQty ? fixedQty : (strategy.equity * riskPercent / 100) / (riskUnit * syminfo.pointvalue)
     strategy.entry("Short", strategy.short, qty=qty)
     strategy.exit("Short Exit", "Short", stop=shortStop, limit=shortTarget)
 
