@@ -11,7 +11,7 @@
 // read of the source videos - check the zone logic against your own
 // charts and tune the inputs below before trading it live.
 //@version=5
-strategy(title="Gold Supply & Demand Strategy (5m)", shorttitle="XAU S&D", overlay=true, initial_capital=10000, currency=currency.USD, default_qty_type=strategy.fixed_qty, default_qty_value=1, pyramiding=0, calc_on_every_tick=false, commission_type=strategy.commission.percent, commission_value=0.02, slippage=2)
+strategy(title="Gold Supply & Demand Strategy (5m)", shorttitle="XAU S&D", overlay=true, initial_capital=10000, pyramiding=0)
 
 // ---------------- Inputs ----------------
 grpZone = "Zone Detection"
