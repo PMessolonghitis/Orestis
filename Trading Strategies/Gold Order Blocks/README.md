@@ -8,34 +8,36 @@ can look at the raw signal quality first before adding exits.
 
 1. **Structure** — swing highs/lows are found with a 10-bar (each side)
    pivot. When price closes beyond the last swing high/low, that's a
-   structure break:
-   - **CHoCH** (change of character) if it reverses the prior trend.
-   - **BOS** (break of structure) if it continues the prior trend.
-   - Both are plotted as labels on the chart so you can sanity-check
-     them against what you'd mark by hand.
+   structure break: **CHoCH** if it reverses the prior trend, **BOS** if
+   it continues it. This still drives which order blocks are valid
+   (toggle "Trade BOS/CHoCH order blocks" independently), but neither is
+   labeled on the chart anymore — only actual BUY/SELL entries are.
 2. **Order block** — the last opposite-colour candle before the
    impulsive leg that caused the break (last down-close candle before a
-   bullish break = bullish OB; last up-close candle before a bearish
-   break = bearish OB).
-3. **FVG filter** — by default, an order block only counts if the
-   impulse leg between it and the breakout contains a 3-candle Fair
-   Value Gap (a classic ICT confirmation that the move was genuinely
-   imbalanced, not just drifting). Turn off "Require FVG" to see raw
-   order blocks without this filter.
+   bullish break = bullish OB, drawn in green with a solid border; last
+   up-close candle before a bearish break = bearish OB, drawn in red).
+3. **FVG filter** — off by default now (more order blocks show up on
+   chart this way). Turn on "Require FVG" if you want the classic ICT
+   confirmation that the impulse leg left a 3-candle Fair Value Gap,
+   which cuts the number of order blocks down significantly.
 4. **Supply & demand confirmation** — independently of order blocks, the
    script also detects supply/demand zones (a small tight-range "base"
-   followed by a strong impulsive candle breaking away from it — same
-   base+move logic as before, drawn in green/red). By default, an order
-   block entry only fires if price is *also* sitting inside an active
-   same-direction supply/demand zone at that moment — confluence between
-   the two systems, not just one signal on its own. Turn off "Require
-   S/D zone overlap" to go back to order-block-only entries.
+   followed by a strong impulsive candle breaking away from it), drawn
+   in the same green/red as order blocks but with a **dashed** border so
+   the two box types stay visually distinct even when they overlap. The
+   detection thresholds are looser now than the first version, so more
+   zones should show up on chart. By default, an order block entry only
+   fires if price is *also* sitting inside an active same-direction
+   supply/demand zone at that moment — confluence between the two
+   systems, not just one signal on its own. Turn off "Require S/D zone
+   overlap" to go back to order-block-only entries.
 5. **Entry** — as soon as price wicks back into a fresh (untouched)
    order block (and, if confluence is required, into a matching
    supply/demand zone at the same time), a market entry fires in that
-   direction. Opposite signals reverse the position (pyramiding is off,
-   one position at a time). No stop/target yet — an opposite-direction
-   OB touch is currently the only thing that closes a trade.
+   direction and a green "BUY" / red "SELL" tag is dropped on the entry
+   bar. Opposite signals reverse the position (pyramiding is off, one
+   position at a time). No stop/target yet — an opposite-direction OB
+   touch is currently the only thing that closes a trade.
 
 ## Setup in TradingView
 

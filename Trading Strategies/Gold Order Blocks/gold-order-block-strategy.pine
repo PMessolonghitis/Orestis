@@ -20,7 +20,7 @@ swingLen      = input.int(10, "Swing length (bars each side)", minval=2, group=g
 maxObLookback = input.int(50, "Max bars to search for order block", minval=5, group=grpStruct)
 
 grpOB = "Order Blocks"
-requireFVG   = input.bool(true, "Require FVG in impulse leg", group=grpOB)
+requireFVG   = input.bool(false, "Require FVG in impulse leg", group=grpOB)
 freshOnly    = input.bool(true, "Only trade each order block once", group=grpOB)
 maxZonesKept = input.int(20, "Max order blocks kept per side", minval=3, maxval=100, group=grpOB)
 extendBars   = input.int(50, "Zone box extend (bars)", minval=5, group=grpOB)
@@ -33,14 +33,14 @@ grpSize = "Position Size"
 qty = input.float(1, "Contracts per entry", minval=0.0001, group=grpSize)
 
 grpVis = "Visuals"
-bullColor   = input.color(color.new(color.blue, 70), "Bullish OB color", group=grpVis)
-bearColor   = input.color(color.new(color.orange, 70), "Bearish OB color", group=grpVis)
-showLabels  = input.bool(true, "Show BOS/CHoCH labels", group=grpVis)
+bullColor     = input.color(color.new(color.green, 70), "Bullish OB color", group=grpVis)
+bearColor     = input.color(color.new(color.red, 70), "Bearish OB color", group=grpVis)
+showEntryTags = input.bool(true, "Show BUY/SELL tags on entries", group=grpVis)
 
 grpSD = "Supply & Demand (confirmation)"
 sdBaseLen           = input.int(2, "S/D base candles", minval=1, maxval=3, group=grpSD)
-sdSmallRangeFactor  = input.float(0.5, "S/D base candle max range (x ATR)", minval=0.1, step=0.1, group=grpSD)
-sdBreakoutFactor    = input.float(1.5, "S/D breakout candle min range (x ATR)", minval=0.5, step=0.1, group=grpSD)
+sdSmallRangeFactor  = input.float(0.6, "S/D base candle max range (x ATR)", minval=0.1, step=0.1, group=grpSD)
+sdBreakoutFactor    = input.float(1.2, "S/D breakout candle min range (x ATR)", minval=0.5, step=0.1, group=grpSD)
 sdAtrLen            = input.int(14, "S/D ATR length", minval=1, group=grpSD)
 sdMaxZonesKept      = input.int(20, "Max S/D zones kept per side", minval=3, maxval=100, group=grpSD)
 requireSDConfluence = input.bool(true, "Require S/D zone overlap to confirm OB entries", group=grpSD)
@@ -106,11 +106,9 @@ if barstate.isconfirmed
         if eventOK and obOffset > 0 and fvgOK
             obTop = high[obOffset]
             obBottom = low[obOffset]
-            newBox = box.new(left=bar_index - obOffset, top=obTop, bottom=obBottom, right=bar_index + extendBars, border_color=color.blue, bgcolor=bullColor, extend=extend.none)
+            newBox = box.new(left=bar_index - obOffset, top=obTop, bottom=obBottom, right=bar_index + extendBars, border_color=color.green, border_style=line.style_solid, bgcolor=bullColor, extend=extend.none)
             array.push(bullZones, Zone.new(top=obTop, bottom=obBottom, active=true, touched=false, createdBar=bar_index, zoneBox=newBox))
             f_trimZones(bullZones, maxZonesKept)
-        if showLabels
-            label.new(bar_index, swingHighVal, isChoch ? "CHoCH" : "BOS", style=label.style_label_down, color=color.new(color.blue, 0), textcolor=color.white, size=size.small)
         trend := 1
         swingHighVal := na
 
@@ -135,11 +133,9 @@ if barstate.isconfirmed
         if eventOK and obOffset > 0 and fvgOK
             obTop = high[obOffset]
             obBottom = low[obOffset]
-            newBox2 = box.new(left=bar_index - obOffset, top=obTop, bottom=obBottom, right=bar_index + extendBars, border_color=color.orange, bgcolor=bearColor, extend=extend.none)
+            newBox2 = box.new(left=bar_index - obOffset, top=obTop, bottom=obBottom, right=bar_index + extendBars, border_color=color.red, border_style=line.style_solid, bgcolor=bearColor, extend=extend.none)
             array.push(bearZones, Zone.new(top=obTop, bottom=obBottom, active=true, touched=false, createdBar=bar_index, zoneBox=newBox2))
             f_trimZones(bearZones, maxZonesKept)
-        if showLabels
-            label.new(bar_index, swingLowVal, isChoch ? "CHoCH" : "BOS", style=label.style_label_up, color=color.new(color.orange, 0), textcolor=color.white, size=size.small)
         trend := -1
         swingLowVal := na
 
@@ -160,14 +156,14 @@ if barstate.isconfirmed
     if sdBullImpulse
         sdBorderD = showSDBoxes ? color.green : color(na)
         sdBgD = showSDBoxes ? demandColor : color(na)
-        dBox = box.new(left=bar_index - sdBaseLen, top=sdBaseHigh, bottom=sdBaseLow, right=bar_index + extendBars, border_color=sdBorderD, bgcolor=sdBgD, extend=extend.none)
+        dBox = box.new(left=bar_index - sdBaseLen, top=sdBaseHigh, bottom=sdBaseLow, right=bar_index + extendBars, border_color=sdBorderD, border_style=line.style_dashed, bgcolor=sdBgD, extend=extend.none)
         array.push(demandZones, Zone.new(top=sdBaseHigh, bottom=sdBaseLow, active=true, touched=false, createdBar=bar_index, zoneBox=dBox))
         f_trimZones(demandZones, sdMaxZonesKept)
 
     if sdBearImpulse
         sdBorderS = showSDBoxes ? color.red : color(na)
         sdBgS = showSDBoxes ? supplyColor : color(na)
-        sBox = box.new(left=bar_index - sdBaseLen, top=sdBaseHigh, bottom=sdBaseLow, right=bar_index + extendBars, border_color=sdBorderS, bgcolor=sdBgS, extend=extend.none)
+        sBox = box.new(left=bar_index - sdBaseLen, top=sdBaseHigh, bottom=sdBaseLow, right=bar_index + extendBars, border_color=sdBorderS, border_style=line.style_dashed, bgcolor=sdBgS, extend=extend.none)
         array.push(supplyZones, Zone.new(top=sdBaseHigh, bottom=sdBaseLow, active=true, touched=false, createdBar=bar_index, zoneBox=sBox))
         f_trimZones(supplyZones, sdMaxZonesKept)
 
@@ -229,5 +225,10 @@ if barstate.isconfirmed
 
     if longSig and sdLongOK
         strategy.entry("Long", strategy.long, qty=qty)
+        if showEntryTags
+            label.new(bar_index, low, "BUY", style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
+
     if shortSig and sdShortOK
         strategy.entry("Short", strategy.short, qty=qty)
+        if showEntryTags
+            label.new(bar_index, high, "SELL", style=label.style_label_down, color=color.red, textcolor=color.white, size=size.small)
