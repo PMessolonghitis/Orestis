@@ -22,11 +22,20 @@ can look at the raw signal quality first before adding exits.
    Value Gap (a classic ICT confirmation that the move was genuinely
    imbalanced, not just drifting). Turn off "Require FVG" to see raw
    order blocks without this filter.
-4. **Entry** — as soon as price wicks back into a fresh (untouched)
-   order block, a market entry fires in that zone's direction. Opposite
-   signals reverse the position (pyramiding is off, one position at a
-   time). No stop/target yet — an opposite-direction OB touch is
-   currently the only thing that closes a trade.
+4. **Supply & demand confirmation** — independently of order blocks, the
+   script also detects supply/demand zones (a small tight-range "base"
+   followed by a strong impulsive candle breaking away from it — same
+   base+move logic as before, drawn in green/red). By default, an order
+   block entry only fires if price is *also* sitting inside an active
+   same-direction supply/demand zone at that moment — confluence between
+   the two systems, not just one signal on its own. Turn off "Require
+   S/D zone overlap" to go back to order-block-only entries.
+5. **Entry** — as soon as price wicks back into a fresh (untouched)
+   order block (and, if confluence is required, into a matching
+   supply/demand zone at the same time), a market entry fires in that
+   direction. Opposite signals reverse the position (pyramiding is off,
+   one position at a time). No stop/target yet — an opposite-direction
+   OB touch is currently the only thing that closes a trade.
 
 ## Setup in TradingView
 
@@ -35,9 +44,12 @@ can look at the raw signal quality first before adding exits.
 2. Pine Editor → paste in `gold-order-block-strategy.pine` → Save →
    confirm it's actually added to the chart (not just open in the
    editor).
-3. Watch the BOS/CHoCH labels and the blue/orange order block boxes
-   first — before even looking at Strategy Tester, check that the
-   zones and structure calls match what you'd draw by hand.
+3. For a clean read while testing, hide every other indicator on the
+   chart and leave only this one visible.
+4. Watch the BOS/CHoCH labels, the blue/orange order block boxes, and
+   the green/red supply/demand boxes first — before even looking at
+   Strategy Tester, check that the zones and structure calls match what
+   you'd draw by hand.
 
 ## What to tune together from here
 
@@ -51,6 +63,14 @@ can look at the raw signal quality first before adding exits.
 - **Max bars to search for order block** — how far back we're allowed
   to look for the "last opposite candle" before the impulse. If order
   blocks look too far from the breakout, lower this.
+- **S/D base/breakout ATR factors** — same idea as the order block FVG
+  filter: loosen `S/D base candle max range` or lower `S/D breakout
+  candle min range` if too few supply/demand zones ever form (meaning
+  confluence almost never fires); tighten if there are too many
+  low-quality zones.
+- **Require S/D zone overlap** — the main lever for "how strict is
+  confirmation." On means fewer, more selective entries; off means
+  order blocks alone decide, same as before this change.
 
 ## Known limitations (v1, on purpose)
 
