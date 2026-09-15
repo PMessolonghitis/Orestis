@@ -1,0 +1,164 @@
+// Gold Order Block Strategy - Entries Only (prototype)
+//
+// Structure : swing highs/lows (wide, 10 bars each side by default).
+//             A close beyond the last swing high/low is a structure
+//             break: CHoCH if it reverses the prior trend, BOS if it
+//             continues it.
+// Order block: the last opposite-colour candle before the impulse leg
+//             that caused the break. Requires a Fair Value Gap inside
+//             that impulse leg by default (classic ICT filter).
+// Entry     : immediate touch - as soon as price wicks back into a
+//             fresh (untouched) order block, in its direction.
+// No stop loss / take profit yet - entries only, on purpose, so we can
+// see how good the raw signals are before adding exits.
+//@version=5
+strategy(title="Gold Order Block Strategy (Entries Only)", shorttitle="XAU OB", overlay=true, pyramiding=0, initial_capital=10000)
+
+// ---------------- Inputs ----------------
+grpStruct = "Structure"
+swingLen      = input.int(10, "Swing length (bars each side)", minval=2, group=grpStruct)
+maxObLookback = input.int(50, "Max bars to search for order block", minval=5, group=grpStruct)
+
+grpOB = "Order Blocks"
+requireFVG   = input.bool(true, "Require FVG in impulse leg", group=grpOB)
+freshOnly    = input.bool(true, "Only trade each order block once", group=grpOB)
+maxZonesKept = input.int(20, "Max order blocks kept per side", minval=3, maxval=100, group=grpOB)
+extendBars   = input.int(50, "Zone box extend (bars)", minval=5, group=grpOB)
+
+grpTrigger = "Entry Trigger"
+useBOS   = input.bool(true, "Trade BOS order blocks", group=grpTrigger)
+useCHoCH = input.bool(true, "Trade CHoCH order blocks", group=grpTrigger)
+
+grpSize = "Position Size"
+qty = input.float(1, "Contracts per entry", minval=0.0001, group=grpSize)
+
+grpVis = "Visuals"
+bullColor   = input.color(color.new(color.blue, 70), "Bullish OB color", group=grpVis)
+bearColor   = input.color(color.new(color.orange, 70), "Bearish OB color", group=grpVis)
+showLabels  = input.bool(true, "Show BOS/CHoCH labels", group=grpVis)
+
+// ---------------- Zone type & storage ----------------
+type Zone
+    float top
+    float bottom
+    bool  active
+    bool  touched
+    int   createdBar
+    box   zoneBox
+
+var array<Zone> bullZones = array.new<Zone>()
+var array<Zone> bearZones = array.new<Zone>()
+
+f_trimZones(arr) =>
+    if array.size(arr) > maxZonesKept
+        old = array.shift(arr)
+        box.delete(old.zoneBox)
+
+var float swingHighVal = na
+var int   swingHighBar = na
+var float swingLowVal  = na
+var int   swingLowBar  = na
+var int   trend        = 0
+
+ph = ta.pivothigh(high, swingLen, swingLen)
+pl = ta.pivotlow(low, swingLen, swingLen)
+
+if barstate.isconfirmed
+    if not na(ph)
+        swingHighVal := ph
+        swingHighBar := bar_index - swingLen
+    if not na(pl)
+        swingLowVal := pl
+        swingLowBar := bar_index - swingLen
+
+    // ---- Bullish structure break (BOS or CHoCH) ----
+    if not na(swingHighVal) and close > swingHighVal
+        isChoch = trend < 0
+        eventOK = isChoch ? useCHoCH : useBOS
+        barsBack = bar_index - swingHighBar
+        maxScan = math.min(barsBack, maxObLookback)
+        obOffset = -1
+        if maxScan >= 1
+            for k = 1 to maxScan
+                if close[k] < open[k]
+                    obOffset := k
+                    break
+        fvgOK = not requireFVG
+        if obOffset > 0 and requireFVG and obOffset >= 3
+            for o = 1 to obOffset - 2
+                if low[o] > high[o + 2]
+                    fvgOK := true
+                    break
+        if eventOK and obOffset > 0 and fvgOK
+            obTop = high[obOffset]
+            obBottom = low[obOffset]
+            newBox = box.new(left=bar_index - obOffset, top=obTop, bottom=obBottom, right=bar_index + extendBars, border_color=color.blue, bgcolor=bullColor, extend=extend.none)
+            array.push(bullZones, Zone.new(top=obTop, bottom=obBottom, active=true, touched=false, createdBar=bar_index, zoneBox=newBox))
+            f_trimZones(bullZones)
+        if showLabels
+            label.new(bar_index, swingHighVal, isChoch ? "CHoCH" : "BOS", style=label.style_label_down, color=color.new(color.blue, 0), textcolor=color.white, size=size.small)
+        trend := 1
+        swingHighVal := na
+
+    // ---- Bearish structure break (BOS or CHoCH) ----
+    if not na(swingLowVal) and close < swingLowVal
+        isChoch = trend > 0
+        eventOK = isChoch ? useCHoCH : useBOS
+        barsBack = bar_index - swingLowBar
+        maxScan = math.min(barsBack, maxObLookback)
+        obOffset = -1
+        if maxScan >= 1
+            for k = 1 to maxScan
+                if close[k] > open[k]
+                    obOffset := k
+                    break
+        fvgOK = not requireFVG
+        if obOffset > 0 and requireFVG and obOffset >= 3
+            for o = 1 to obOffset - 2
+                if high[o] < low[o + 2]
+                    fvgOK := true
+                    break
+        if eventOK and obOffset > 0 and fvgOK
+            obTop = high[obOffset]
+            obBottom = low[obOffset]
+            newBox2 = box.new(left=bar_index - obOffset, top=obTop, bottom=obBottom, right=bar_index + extendBars, border_color=color.orange, bgcolor=bearColor, extend=extend.none)
+            array.push(bearZones, Zone.new(top=obTop, bottom=obBottom, active=true, touched=false, createdBar=bar_index, zoneBox=newBox2))
+            f_trimZones(bearZones)
+        if showLabels
+            label.new(bar_index, swingLowVal, isChoch ? "CHoCH" : "BOS", style=label.style_label_up, color=color.new(color.orange, 0), textcolor=color.white, size=size.small)
+        trend := -1
+        swingLowVal := na
+
+    // ---- Maintain zones + fire entries on touch ----
+    longSig = false
+    if array.size(bullZones) > 0
+        for i = 0 to array.size(bullZones) - 1
+            zBull = array.get(bullZones, i)
+            if zBull.active
+                box.set_right(zBull.zoneBox, bar_index + extendBars)
+                if close < zBull.bottom
+                    zBull.active := false
+                    box.set_border_color(zBull.zoneBox, color.gray)
+                    box.set_bgcolor(zBull.zoneBox, color.new(color.gray, 85))
+                else if (not freshOnly or not zBull.touched) and low <= zBull.top and low >= zBull.bottom
+                    zBull.touched := true
+                    longSig := true
+
+    shortSig = false
+    if array.size(bearZones) > 0
+        for i = 0 to array.size(bearZones) - 1
+            zBear = array.get(bearZones, i)
+            if zBear.active
+                box.set_right(zBear.zoneBox, bar_index + extendBars)
+                if close > zBear.top
+                    zBear.active := false
+                    box.set_border_color(zBear.zoneBox, color.gray)
+                    box.set_bgcolor(zBear.zoneBox, color.new(color.gray, 85))
+                else if (not freshOnly or not zBear.touched) and high >= zBear.bottom and high <= zBear.top
+                    zBear.touched := true
+                    shortSig := true
+
+    if longSig
+        strategy.entry("Long", strategy.long, qty=qty)
+    if shortSig
+        strategy.entry("Short", strategy.short, qty=qty)
