@@ -20,24 +20,32 @@ can look at the raw signal quality first before adding exits.
    chart this way). Turn on "Require FVG" if you want the classic ICT
    confirmation that the impulse leg left a 3-candle Fair Value Gap,
    which cuts the number of order blocks down significantly.
-4. **Supply & demand confirmation** — independently of order blocks, the
-   script also detects supply/demand zones (a small tight-range "base"
-   followed by a strong impulsive candle breaking away from it), drawn
-   in the same green/red as order blocks but with a **dashed** border so
-   the two box types stay visually distinct even when they overlap. The
-   detection thresholds are looser now than the first version, so more
-   zones should show up on chart. By default, an order block entry only
-   fires if price is *also* sitting inside an active same-direction
-   supply/demand zone at that moment — confluence between the two
-   systems, not just one signal on its own. Turn off "Require S/D zone
-   overlap" to go back to order-block-only entries.
-5. **Entry** — as soon as price wicks back into a fresh (untouched)
-   order block (and, if confluence is required, into a matching
-   supply/demand zone at the same time), a market entry fires in that
-   direction and a green "BUY" / red "SELL" tag is dropped on the entry
-   bar. Opposite signals reverse the position (pyramiding is off, one
-   position at a time). No stop/target yet — an opposite-direction OB
-   touch is currently the only thing that closes a trade.
+4. **Supply & demand zones** — independently of order blocks, the script
+   also detects supply/demand zones (a small tight-range "base" followed
+   by a strong impulsive candle breaking away from it), drawn in the
+   same green/red as order blocks but with a **dashed** border so the
+   two box types stay visually distinct even when they overlap.
+5. **Rejection candle at the zone** — by default, touching a zone isn't
+   enough on its own; that same bar must also print a rejection candle
+   (bullish/bearish pin bar or engulfing) in the zone's direction. Turn
+   off "Require rejection candle" to go back to immediate-touch entries.
+6. **Order block OR supply/demand zone** — by default, *either* an order
+   block touch or a supply/demand zone touch (each with its own
+   rejection candle) is enough to fire a signal — this is what gives you
+   more entries. Turn on "Require BOTH order block AND S/D zone" to
+   switch to strict confluence instead (fewer, more selective entries).
+7. **Higher-timeframe trend bias** — a 1-hour EMA 20/50 cross (both
+   adjustable) sets the "real" trend direction. By default, longs only
+   fire when the 1H trend is bullish and shorts only when it's bearish —
+   this is the main lever meant to stop counter-trend/chop entries and
+   get you into the bigger moves. The chart background tints faint
+   green/red so you can see the current HTF bias at a glance (toggle
+   "Shade chart background by HTF bias" to turn that off).
+8. **Entry** — when a signal passes all of the above, a market entry
+   fires and a green "BUY" / red "SELL" tag is dropped on the entry bar.
+   Opposite signals reverse the position (pyramiding is off, one
+   position at a time). No stop/target yet — an opposite-direction touch
+   is currently the only thing that closes a trade.
 
 ## Setup in TradingView
 
@@ -48,10 +56,11 @@ can look at the raw signal quality first before adding exits.
    editor).
 3. For a clean read while testing, hide every other indicator on the
    chart and leave only this one visible.
-4. Watch the BOS/CHoCH labels, the blue/orange order block boxes, and
-   the green/red supply/demand boxes first — before even looking at
-   Strategy Tester, check that the zones and structure calls match what
-   you'd draw by hand.
+4. Watch the order block boxes (solid border), the supply/demand boxes
+   (dashed border), the background tint (HTF bias), and the BUY/SELL
+   tags — before even looking at Strategy Tester, check that entries
+   only fire with the background tint and that they're catching moves
+   that actually run, not just noise.
 
 ## What to tune together from here
 
@@ -65,14 +74,20 @@ can look at the raw signal quality first before adding exits.
 - **Max bars to search for order block** — how far back we're allowed
   to look for the "last opposite candle" before the impulse. If order
   blocks look too far from the breakout, lower this.
-- **S/D base/breakout ATR factors** — same idea as the order block FVG
-  filter: loosen `S/D base candle max range` or lower `S/D breakout
-  candle min range` if too few supply/demand zones ever form (meaning
-  confluence almost never fires); tighten if there are too many
-  low-quality zones.
-- **Require S/D zone overlap** — the main lever for "how strict is
-  confirmation." On means fewer, more selective entries; off means
-  order blocks alone decide, same as before this change.
+- **S/D base/breakout ATR factors** — loosen `S/D base candle max range`
+  or lower `S/D breakout candle min range` if too few supply/demand
+  zones ever form; tighten if there are too many low-quality zones.
+- **Require BOTH order block AND S/D zone** — off (either counts) gives
+  more entries; on (strict confluence) gives fewer, higher-conviction
+  ones. This is the main "quantity vs. quality" lever now.
+- **Require rejection candle** / **Min wick-to-body ratio** — how
+  strict the candle confirmation at a zone touch has to be. Loosen the
+  ratio (lower than 1.0) if valid-looking rejections are getting
+  rejected by the filter.
+- **HTF timeframe / EMA lengths** — 1H with EMA 20/50 is the starting
+  point. Try 15m for a faster-reacting bias, or 4H for a slower, more
+  stable one, and see which keeps you out of the chop without missing
+  the big moves.
 
 ## Known limitations (v1, on purpose)
 
